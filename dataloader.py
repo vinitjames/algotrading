@@ -1,9 +1,11 @@
+import numpy as np
+
 class DataLoader(object):
     
     def __init__(self, client, symbols: list= []):
         self.symbols = symbols
         self.client = client
-        self.data_cache = {}
+        self.cached_data = {}
         
     def get_open_price(self,
                        symbol,
@@ -65,7 +67,7 @@ class DataLoader(object):
         if(data is None):
             data = getattr(self.client, 'get_klines')(**params)
             #add data to cached_data
-            return data.astype(float)
+            return np.asarray(data).astype(float)
         if (startTime < data[0, 0]):
             params['endTime'] = data[0,0]
             data = np.concatenate(getattr(self.client, 'get_klines')(**params),
@@ -133,3 +135,11 @@ class DataLoader(object):
    
 
     
+if __name__ == '__main__':
+    
+    from binance.public_client import PublicClient
+
+    client  = PublicClient()
+    datafeeder = DataLoader(client)
+    data = datafeeder.get_klines('ETHEUR', '1h', '1/12/2020', '12/12/2020')
+    print(data)
