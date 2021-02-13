@@ -1,12 +1,12 @@
 from .strategy_runner import StrategyRunner
 from typing import Union
-from utils import format_time, parse_inetrval
+from utils import format_time, interval_to_ms
 
 class Backtesting(StrategyRunner):
 
-    def __init__(self, strategy, prof_loss, datafeeder):
+    def __init__(self, strategy):
         super(Backtesting, self).__init__(strategy, prof_loss, data_feeder)
-        
+        self.symbol = symbol
 
     @property
     def strategy(self):
@@ -20,15 +20,13 @@ class Backtesting(StrategyRunner):
               startTime: Union[int, str],
               endTime: Union[int, str],
               interval: Union[int, str]):
-
-        self.start_time = format_time(startTime)
-        self.end_time = format_time(endTime)
-        if(self.start_time >= self.end_time):
-            raise ValueError("Start Time greater than end time")
-        interval = parse_interval(interval)
-        if(interval == None):
-            raise ValueError("Could not parse interval. Unvalid interval passed")
-        self.data = self.data_feeder(startTime, endTime, Interval)
+        self.strategy_params = self.strategy.get_params()
+        symbol = self.strategy_params['assest'] + self.strategy_params['base_asset']
+        data_feed = getattr(self._datafeeder, 'get_' + self.strategy_params['data_feed'])
+        self.data = self.data_feed(symbol = symbol, 
+                                   startTime = startTime,
+                                   endTime = endTime,
+                                   interval = interval)
 
         for data in self.data:
             call = strategy.iteration_step(data)
@@ -41,8 +39,12 @@ class Backtesting(StrategyRunner):
                 self.handle_sell_call()
                 continue
 
-        
-            
+    def handle_buy_call(self, symbol: str, **kwargs):
+        pass
 
+    def handle_sell_call(self, symbol: str, **kwags):
+        pass
         
-        
+
+
+    

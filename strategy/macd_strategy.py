@@ -2,24 +2,32 @@ from .base_strategy import Strategy
 from calls import Call
 from collections import deque
 
-
 class MACDStrategy(Strategy):
     
     def __init__(self, data_src: list,
                  fast_period: int = 12,
                  slow_period:int = 26,
                  signal_period:int = 9):
-        self.data_src = data_src
-        self.data_history  = deque([], maxlen = slow_period + signal_period -1)
+        self._data_history  = deque([], maxlen = slow_period + signal_period -1)
 
-
+    @property
+    def history_size(self):
+        return self._data_history.max_len
+    
+    def get_params():
+        return {
+            'symbol': self.asset,
+            'base_asset' : self.base_asset,
+            'data_feed' : 'closing_price'  
+        }
+    
     def iteration_step(self, data:dict):
-        if 'price' not in data.key():
+        if 'closing_price' not in data.key():
             raise ValueError("price not in data")
 
-        self.window_data.append(data[price]);
-        if(len(self.data_history) < self.data_history.max_len):
-            return 0
+        self._data_history.append(data[price]);
+        if(len(self._data_history) < self._data_history.max_len):
+            return Call('hold')
 
         macd, macdsignal, macdhist = talib.MACD(self.data_history,
                                                 slowperiod = self.slow_period,

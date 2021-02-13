@@ -4,10 +4,14 @@ import talib
 
 class Strategy(metaclass = ABCMeta):
 
-        def __init__(self, data_srcs: list, window_size: int):
-                self.data_srcs = data_srcs
-                self.data_history = deque([], maxlen = window_size) 
-
+        @property
+        @abstractmethod
+        def history_size(self):
+                pass
+        @abstractmethod
+        def get_params(self):
+                pass
+        
         @abstractmethod
         def iteration_step(self, data:dict):
                 pass

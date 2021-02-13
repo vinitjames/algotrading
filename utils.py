@@ -2,10 +2,18 @@ from  datetime import datetime
 from operator import itemgetter
 from typing import Union
 import dateparser
-
 import pytz
 
-
+def interval_to_ms(interval: str) -> int:
+    value = int(interval[:-1])
+    unit = interval[-1]
+    seconds_per_unit = {
+        'm': 60,
+        'h': 60*60,
+        'd': 60*60*24,
+        'w': 60*60*24*7
+    }
+    return value * seconds_per_unit[unit] * 1000
 
 
 def format_time(data: Union[int, float, str]) -> float:

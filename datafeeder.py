@@ -1,82 +1,87 @@
 import numpy as np
+from utils import format_time, interval_to_ms
 
-class DataLoader(object):
+class DataFeeder(object):
     
-    def __init__(self, client, symbols: list= []):
-        self.symbols = symbols
+    def __init__(self, client):
         self.client = client
         self.cached_data = {}
         
     def get_open_price(self,
                        symbol,
+                       interval: int,
                        startTime: int = None,
-                       endTime:int = None,
-                       interval: int = None):
+                       endTime:int = None):
         kwargs = locals()
         del kwargs['self']
         return self.get_klines(**kwargs)[:, 1]
                  
-    def get_closing_price(self,
-                          symbol,
-                          startTime: int = None,
-                          endTime:int = None,
-                          interval: int = None):
+    def get_close_price(self,
+                        symbol,
+                        interval: int,
+                        startTime: int = None,
+                        endTime:int = None):
         kwargs = locals()
         del kwargs['self']
-        return self.get_klines(**kwargs)[:, 2]
+        return self.get_klines(**kwargs)[:, 4]
 
     def get_volume(self,
                    symbol,
+                   interval: str,
                    startTime: int = None,
-                   endTime:int = None,
-                   interval: int = None):
+                   endTime:int = None):
         kwargs = locals()
         del kwargs['self']
-        return self.get_lines(**kwargs)[:, 3]
+        return self.get_klines(**kwargs)[:, 5]
     
     def get_high_price(self,
                        symbol,
+                       interval: int,
                        startTime: int = None,
-                       endTime:int = None,
-                       interval: int = None):
+                       endTime:int = None):
         kwargs = locals()
         del kwargs['self']
-        return self.get_lines(**kwargs)[:, 4]
+        return self.get_klines(**kwargs)[:, 2]
         
     def get_low_price(self,
                       symbol,
+                      interval: int = None,
                       startTime: int = None,
-                      endTime:int = None,
-                      interval: int = None):
+                      endTime:int = None):
         kwargs = locals()
         del kwargs['self']
-        return self.get_lines(**kwargs)[:, 5]
+        return self.get_klines(**kwargs)[:, 3]
 
     def get_aggregate_price(self):
         pass
 
     def get_klines(self,
                    symbol: str,
-                   interval: str,
+                   interval: str,                   
                    startTime: int = None,
                    endTime:int = None):
-        
-        params = locals()
-        del params['self']
+        params= {}
+        params['interval'] = interval
+        params['symbol'] = symbol
+        params['startTime'] = format_time(startTime)
+        params['endTime'] = format_time(endTime)
+        import ipdb; ipdb.set_trace()
         data = self._get_cached_klines(**params)
         if(data is None):
-            data = getattr(self.client, 'get_klines')(**params)
-            #add data to cached_data
-            return np.asarray(data).astype(float)
-        if (startTime < data[0, 0]):
-            params['endTime'] = data[0,0]
-            data = np.concatenate(getattr(self.client, 'get_klines')(**params),
-                                  data)     
-        if (endTime > data[-1, 0]):
+            data = getattr(self.client, 'get_historical_klines')(**params)
+            data = np.asarray(data).astype(float)
+            self._add_klines_to_cache(data, **params)
+            return data
+        
+        
+        if (params['startTime'] < data[0][0]):
+            params['endTime'] = int(data[0][0]) - interval_to_ms(interval)
+            data = np.concatenate((self.get_klines(**params),
+                                   data))     
+        if (params['endTime'] > data[-1][0]):
             params['endTime'] = endTime
-            params['startTime'] = data[0,-1]
-            data = np.concatenate(getattr(self.client, 'get_klines')(**params),
-                                  data)
+            params['startTime'] = int(data[0][-1]) + interval_to_ms(interval)
+            data = np.concatenate((data, self.get_klines(**params)))
             
         return data.astype(float)
         
@@ -86,9 +91,11 @@ class DataLoader(object):
                           endTime:int = None,
                           interval: int = None):
         data = self._iter_cache(keys = ['klines', symbol, interval])
-        if(data == None):
+        print('This is data' , data)
+
+        if(data is None):
             return None
-        if(endTime <= data[0,0])or(startTime >= data[-1,0]):
+        if(endTime <= data[0][0])or(startTime >= data[-1][0]):
             return None
         return data[np.squeeze(np.argwhere((data[:,0]>= startTime)
                                            & (data[:,0]<= endTime))), :]
@@ -102,13 +109,13 @@ class DataLoader(object):
         data_dict  = self._iter_cache(keys = ['klines', symbol, interval])
         if(data_dict is None):
             self._create_cache_struct(keys = ['klines', symbol, interval])
-            self.data_cache['klines'][symbol][interval] = data
+            self.cached_data['klines'][symbol][interval] = data
             return 
-        if(endTime < data_dict[0,0]):
-            self.data_cache['klines'][symbol][interval] = np.concatenate(data, data_dict)
+        if(endTime < int(data_dict[0][0])):
+            self.cache_data['klines'][symbol][interval] = np.concatenate((data, data_dict))
            
-        if(startTime > data_dict[0,-1]):
-           self.data_cache['klines'][symbol][interval] = np.concatenate(data_dict, data)
+        if(startTime > int(data_dict[0][-1])):
+           self.cached_data['klines'][symbol][interval] = np.concatenate((data_dict, data))
 
     def _create_cache_struct(self, keys: list):
         data = self.cached_data
@@ -130,6 +137,7 @@ class DataLoader(object):
             if(key not in data.keys()):
                 return None
             data = data[key]
+            
         return data 
 
    
@@ -140,6 +148,15 @@ if __name__ == '__main__':
     from binance.public_client import PublicClient
 
     client  = PublicClient()
-    datafeeder = DataLoader(client)
+    datafeeder = DataFeeder(client)
     data = datafeeder.get_klines('ETHEUR', '1h', '1/12/2020', '12/12/2020')
+    data = datafeeder.get_closing_price('ETHEUR', '1h', '1/12/2020', '12/12/2020')
     print(data)
+    data = datafeeder.get_open_price('ETHEUR', '1h', '1/12/2020', '12/12/2020')
+    print(data)
+    data = datafeeder.get_high_price('ETHEUR', '1h', '1/12/2020', '12/12/2020')
+    print(data)
+    data = datafeeder.get_low_price('ETHEUR', '1h', '1/12/2020', '12/12/2020')
+    print(data)
+    data = datafeeder.get_klines('ETHEUR', '1h', '1/11/2020', '11/12/2020')
+    
